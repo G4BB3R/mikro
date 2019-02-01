@@ -3,21 +3,19 @@ module Parser (run) where
 import Text.Parsec as P
 import Text.Parsec.String as PS
 import Data.Maybe
-{-| module Color
-  ; out rgb strToColor
-  ; use String.Extra
-  ; decls...
-  | -}
+
+{-  (module Color
+        (export rgb strToColor)
+        (import String.Extra))
+-}
 data AST
     = AST String [Export] [Import] [Declaration]
         deriving Show
 
--- out route (..)
 data Export
     = Export String [String]
         deriving Show
 
--- use Color as C (rgb, strToRgb)
 data Import
     = Import String String [String]
         deriving Show
@@ -34,14 +32,13 @@ data TypeConstructor
 
 data Type
     = TypeInt
-    -- | TypeBool
     | TypeChar
     | TypeString
     | TypeFloat
     | TypeCustom String
-    | TypeTuple [Type]
-    | TypeRecord [(String, Type)]   -- { name : String, age : Int }
-    | TypeFn Type Type       -- Bool -> Int
+    -- | TypeTuple [Type]
+    | TypeRecord [(String, Type)]  -- { name : String, age : Int }
+    | TypeFn Type Type                -- Bool -> Int
     | TypeParens Type
         deriving Show
 
@@ -49,7 +46,7 @@ data Expr
     = ExprVal Value
     | ExprVar String 
     | ExprRecord [(String, Expr)]     -- { x = if True then 1 else 2, y = 2 + 2, z = 7 }
-    -- | ExprFnCall String 
+    | ExprFnCall String [Expr]
     | ExprIf Expr Expr Expr           -- if b then a + 2 else let x = 1 in x
     -- | ExprCase Expr [()]                    -- case 1 of ; 1 -> True ; _ -> False
     | ExprLet [Declaration] Expr    -- let a = 1 ; b = 2 in a + b
@@ -70,95 +67,128 @@ run input =
 
 parse_ast :: Parser AST
 parse_ast = do
-    module_name  <- parse_module_header
-    many_lines
+    spaces 
+    char '('
+    spaces
+    string "module"
+    spaces
+    module_name  <- identifier_U
+    spaces
     exports      <- parse_exports
-    many_lines
+    spaces
     imports      <- parse_imports
-    many_lines
+    spaces
+    char ')'
+    spaces
     declarations <- many $ try $ parse_declaration <* spaces
     spaces
     eof
     return $ AST module_name exports imports declarations
 
 
-parse_module_header :: Parser String
-parse_module_header =
-    string "module " *> identifier <* many_spaces
-
-
 parse_exports :: Parser [Export]
 parse_exports = do
-    try $ string "out "
-    first  <- identifier <* many_spaces
-    others <- many $ try $ endOfLine *> string "    " *> identifier <* many_spaces
-    return $ map (\id_ -> Export id_ [])  $ first : others
+    try $ char '(' >> spaces >> string "export"
+    spaces
+    exports <- many $ try $ identifier <* spaces
+    char ')'
+    return $ map (\id_ -> Export id_ [])  $ exports
 
 
 parse_imports :: Parser [Import]
 parse_imports = do
-    try $ string "use "
-    first  <- import_
-    others <- many $ try $ endOfLine *> string "    " *> import_
-    return $ first : others
+    try $ char '(' >> string "import"
+    spaces
+    imports_ <- many $ try $ import_
+    spaces
+    char ')'
+    return $ imports_
     where 
         import_ = do 
-            id_ <- identifier
-            many_spaces
-            as_ <- optionMaybe $ (try (string "as") *> char ' ' *> many_spaces *> identifier)
-            many_spaces
-            qualifieds <- do
+            try $ char '('
+            id_ <- identifier_namespaced_U
+            spaces
+            as_ <- optionMaybe $ (try (string "as") *> spaces *> identifier_U)
+            spaces
+            qualifieds <- optionMaybe $ do
                 try $ char '('
-                init_ <- many $ try $ identifier <* many_spaces <* char ',' <* many_spaces
-                last_ <- identifier
+                spaces
+                imports_ <- many $ try $ identifier <* spaces
                 char ')'
-                many_spaces
-                return $ init_ ++ [last_]
+                return imports_
+            spaces
+            char ')'
+            spaces
 
-            return $ Import id_ (Data.Maybe.fromMaybe id_ as_) qualifieds
+            return $ Import id_ (Data.Maybe.fromMaybe id_ as_) (Data.Maybe.fromMaybe [] qualifieds)
 
 
 parse_declaration :: Parser Declaration
 parse_declaration = do
-        try parse_type_declaration
-    <|> try parse_alias_declaration
-    <|> try parse_function_declaration
+        parse_type_declaration
+    <|> parse_alias_declaration
+    <|> parse_function_declaration
     <?> "declaration"
 
 
 parse_function_declaration :: Parser Declaration
 parse_function_declaration = do 
     definition_ <- optionMaybe $ do 
-        try $ char '@'
-        many_spaces
+        try $ char '(' >> spaces >> char '@'
+        spaces
         type_ <- parse_type
-        many_spaces
-        endOfLine
+        spaces
+        char ')'
+        spaces
         return type_
     
-    id_ <- identifier
-    many_spaces
-    params_ <- many $ identifier <* many_spaces
-    char '='
+    defn <- try $ char '(' >> ((try $ string "defn") <|> string "def")
     spaces
+    id_ <- identifier
+    spaces
+    params_ <- do
+        if defn == "defn" then do 
+            char '['
+            spaces
+            params_ <- many $ identifier <* spaces
+            char ']'
+            spaces
+            return params_
+        else
+            return []
+
     expr_ <- parse_expr
+    spaces
+    char ')'
     return $ FuncDecl definition_ id_ params_ expr_
 
 parse_expr :: Parser Expr 
 parse_expr = 
-        try parse_expr_if
-    <|> try parse_expr_let
-    <|> try parse_expr_record
-    <|> try (parse_expr_value >>= return . ExprVal)
-    <|> try parse_expr_var
+        parse_expr_if
+    <|> parse_expr_let
+    <|> parse_expr_function_call
+    <|> parse_expr_record
+    <|> (parse_expr_value >>= return . ExprVal)
+    <|> parse_expr_var
     <?> "expression"
+
+parse_expr_function_call :: Parser Expr 
+parse_expr_function_call = do 
+    try $ char '('
+    spaces
+    id_ <- identifier_namespaced_L
+    spaces
+    args <- many $ try $ parse_expr <* spaces
+    char ')'
+    return $ ExprFnCall id_ args
+
 
 parse_expr_var :: Parser Expr
 parse_expr_var = do
     id_ <- identifier_L
     return $ ExprVar id_
 
-parse_expr_value :: Parser Value 
+parse_expr_value :: Parser Value
 parse_expr_value = do 
         try parse_int
     -- <|> try parse_bool
@@ -215,61 +245,67 @@ parse_expr_record = do
 
 parse_expr_if :: Parser Expr 
 parse_expr_if = do
-    try $ string "if"
+    try $ char '(' >> string "if"
     spaces
     expr1 <- parse_expr
     spaces
-    string "then"
-    spaces
     expr2 <- parse_expr
     spaces
-    string "else"
-    spaces
     expr3 <- parse_expr
+    spaces
+    char ')'
     return $ ExprIf expr1 expr2 expr3
 
-parse_expr_let :: Parser Expr 
+
+parse_expr_let :: Parser Expr
 parse_expr_let = do
-    try $ string "let"
+    try $ char '(' >> string "let"
+    spaces
+    char '['
     spaces
     declarations <- many $ try $ parse_declaration <* spaces
-    string "in"
+    spaces
+    char ']'
     spaces
     expr <- parse_expr
+    spaces
+    char ')'
     return $ ExprLet declarations expr
 
 
 parse_type_declaration :: Parser Declaration
 parse_type_declaration = do
-    try $ string "type" 
-    char ' '
-    many_spaces
+    try $ char '(' >> string "type"
+    spaces
     id_ <- identifier
     spaces
-    char '='
+    constructors  <- many $ try $ type_constructor <* spaces
     spaces
-    first_ <- type_constructor
-    tail_  <- many $ try $ spaces *> char '|' *> many_spaces *> type_constructor
-    return $ TypeDecl id_ $ first_ : tail_
+    char ')'
+    return $ TypeDecl id_ $ constructors
 
     where 
         type_constructor :: Parser TypeConstructor
-        type_constructor = do
-            id_    <- identifier
-            types_ <- many $ try $ char ' ' *> many_spaces *> parse_type
-            return $ TypeConstructor id_ types_
+        type_constructor =
+            (do try $ char '('
+                id_    <- identifier_U
+                types_ <- many $ try $ spaces *> parse_type
+                spaces
+                char ')'
+                return $ TypeConstructor id_ types_)
+
+            <|> (identifier_U >>= (\id_ -> return $ TypeConstructor id_ []))
 
 
 parse_alias_declaration :: Parser Declaration
 parse_alias_declaration = do
-    try $ string "alias"
-    char ' '
-    many_spaces
-    id_ <- identifier
+    try $ char '(' >> string "alias"
     spaces
-    char '='
+    id_ <- identifier_U
     spaces
     type_ <- parse_type
+    spaces
+    char ')'
     return $ AliasDecl id_ type_
 
 parse_type :: Parser Type 
@@ -282,12 +318,12 @@ parse_type = do
         <|> (try (string "String") *> return TypeString)
         <|> (try (string "Float")  *> return TypeFloat)
         <|> (try identifier >>= return . TypeCustom)
-        <|> try parse_tuple
+       -- <|> try parse_tuple
         <|> try parse_record_type
         <|> try parse_type_parens
         <?> "Type!"
 
-    arrow_ <- optionMaybe $ try $ many_spaces *> string "->" *> many_spaces >> return ()
+    arrow_ <- optionMaybe $ try $ spaces *> string "->" *> spaces >> return ()
 
     case arrow_ of 
         Nothing ->
@@ -299,15 +335,15 @@ parse_type = do
 
 
     where
-        parse_tuple = do
-            try $ char '('
-            many_spaces
-            head_ <- parse_type
-            tail_ <- many1 $ try $ many_spaces *> char ',' *> many_spaces *> parse_type
-            many_spaces
-            char ')'
-            many_spaces
-            return $ TypeTuple $ head_ : tail_
+        -- parse_tuple = do
+        --     try $ char '('
+        --     spaces
+        --     head_ <- parse_type
+        --     tail_ <- many1 $ try $ spaces *> char ',' *> spaces *> parse_type
+        --     spaces
+        --     char ')'
+        --     spaces
+        --     return $ TypeTuple $ head_ : tail_
 
         parse_record_type = do 
             try $ char '{'
@@ -335,16 +371,19 @@ parse_type = do
                     return (id_, type_)
 
         parse_type_parens = do 
-            many_spaces
+            spaces
             char '('
-            many_spaces
+            spaces
             type_ <- parse_type 
-            many_spaces
+            spaces
             char ')'
-            many_spaces
+            spaces
             return $ TypeParens type_
 
 
+identifier_operator :: Parser String 
+identifier_operator =
+    many $ oneOf "!@#$%^&*/=+-_.:?><"
 
 identifier :: Parser String
 identifier = do
@@ -364,22 +403,18 @@ identifier_U = do
     xs <- many alphaNum
     return $ x : xs    
 
+identifier_namespaced_U :: Parser String 
+identifier_namespaced_U = do
+    m_ <- optionMaybe $ try $ do id_ <- identifier_U ; dot <- string "." ; return $ id_ ++ dot
+    id_ <- identifier_U
+    case m_ of 
+        Nothing -> return id_
+        Just namespace -> return $ namespace ++ id_
 
-many_spaces :: Parser ()
-many_spaces =
-    skipMany $ char ' ' *> return ()
-
-
-many_lines :: Parser () 
-many_lines =
-    (try (endOfLine >> many_spaces >> many_lines)) <|> (endOfLine >> return ())
-
-
-parser_free_spaces_but_keep_in_scope :: Parser ()
-parser_free_spaces_but_keep_in_scope = do
-    optionMaybe $ try $ do 
-        spaces
-        endOfLine
-        char ' '
-        many_spaces
-    return ()
+identifier_namespaced_L :: Parser String 
+identifier_namespaced_L = do
+    m_ <- optionMaybe $ try $ do id_ <- identifier_U ; dot <- string "." ; return $ id_ ++ dot
+    id_ <- identifier_L <|> identifier_operator
+    case m_ of 
+        Nothing -> return id_
+        Just namespace -> return $ namespace ++ id_
