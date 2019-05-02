@@ -6,19 +6,8 @@
             (Math as M)))
 
 
-(type Colors Red Green Blue)
-
-(alias Mother { name : String, age : Int })
-
-(alias Mom Mother)
-
-(@ Int -> Int)
-(defn minus [a b]
-    (- a b))
-
-(@ Int -> Int)
-(defn wtf [a b]
-    (let[(def a 3000)]
-        (if (= a b)
-            (+ a b)
-            (- a b))))
+(defn lambida [ a b ]
+    (case (+ a b)
+		(1  10)
+		(2  20)
+		(_ 999)))

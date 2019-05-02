@@ -4,62 +4,9 @@ import Text.Parsec as P
 import Text.Parsec.String as PS
 import Data.Maybe
 
-{-  (module Color
-        (export rgb strToColor)
-        (import String.Extra))
--}
-data AST
-    = AST String [Export] [Import] [Declaration]
-        deriving Show
+import AST
 
-data Export
-    = Export String [String]
-        deriving Show
-
-data Import
-    = Import String String [String]
-        deriving Show
-
-data Declaration
-    = FuncDecl (Maybe Type) String [String] Expr       -- [@ Int -> Int ] \n sum a b = a + b
-    | TypeDecl String [TypeConstructor]        -- type PrimaryColors = Red | Green | Blue
-    | AliasDecl String Type                    -- alias Model = { name : String }
-        deriving Show
-
-data TypeConstructor 
-    = TypeConstructor String [Type]
-        deriving Show
-
-data Type
-    = TypeInt
-    | TypeChar
-    | TypeString
-    | TypeFloat
-    | TypeCustom String
-    -- | TypeTuple [Type]
-    | TypeRecord [(String, Type)]  -- { name : String, age : Int }
-    | TypeFn Type Type                -- Bool -> Int
-    | TypeParens Type
-        deriving Show
-
-data Expr 
-    = ExprVal Value
-    | ExprVar String 
-    | ExprRecord [(String, Expr)]     -- { x = if True then 1 else 2, y = 2 + 2, z = 7 }
-    | ExprFnCall String [Expr]
-    | ExprIf Expr Expr Expr           -- if b then a + 2 else let x = 1 in x
-    -- | ExprCase Expr [()]                    -- case 1 of ; 1 -> True ; _ -> False
-    | ExprLet [Declaration] Expr    -- let a = 1 ; b = 2 in a + b
-    -- | ExprLambda
-        deriving Show
-
-data Value 
-    = ValInt Int            -- 1337
-    -- | ValBool Bool          -- True
-    | ValChar Char          -- 'a'
-    | ValString String      -- "rsrs"
-        deriving Show
-
+allowed_symbols = "!@#$%^&*/=+-_.:?><"
 
 run :: String -> Either ParseError AST
 run input =
@@ -165,12 +112,25 @@ parse_function_declaration = do
 parse_expr :: Parser Expr 
 parse_expr = 
         parse_expr_if
+    <|> parse_expr_case
     <|> parse_expr_let
+    <|> parse_expr_is
+    <|> parse_expr_lambda
     <|> parse_expr_function_call
+    <|> parse_expr_list
     <|> parse_expr_record
     <|> (parse_expr_value >>= return . ExprVal)
     <|> parse_expr_var
     <?> "expression"
+
+parse_expr_list :: Parser Expr 
+parse_expr_list = do 
+    try $ char '['
+    spaces
+    exprs <- many $ try $ parse_expr <* spaces
+    spaces
+    char ']'
+    return $ ExprList exprs
 
 parse_expr_function_call :: Parser Expr 
 parse_expr_function_call = do 
@@ -185,7 +145,7 @@ parse_expr_function_call = do
 
 parse_expr_var :: Parser Expr
 parse_expr_var = do
-    id_ <- identifier_L
+    id_ <- identifier_namespaced_L
     return $ ExprVar id_
 
 parse_expr_value :: Parser Value
@@ -256,6 +216,29 @@ parse_expr_if = do
     char ')'
     return $ ExprIf expr1 expr2 expr3
 
+parse_expr_case :: Parser Expr 
+parse_expr_case = do
+    try $ char '(' >> string "case"
+    spaces
+    expr <- parse_expr
+    spaces
+    cases_ <- many $ try $ parser_case <* spaces
+    spaces
+    char ')'
+    return $ ExprCase expr cases_
+
+    where 
+        parser_case :: Parser (Expr, Expr)
+        parser_case = do 
+            try $ char '('
+            spaces
+            expr1 <- parse_expr
+            spaces
+            expr2 <- parse_expr
+            spaces
+            char ')'
+            return (expr1, expr2)
+
 
 parse_expr_let :: Parser Expr
 parse_expr_let = do
@@ -272,6 +255,29 @@ parse_expr_let = do
     char ')'
     return $ ExprLet declarations expr
 
+parse_expr_is :: Parser Expr
+parse_expr_is = do
+    try $ char '(' >> string "is"
+    spaces
+    expr_ <- parse_expr
+    spaces
+    id_ <- identifier_namespaced_U
+    spaces
+    char ')'
+    return $ ExprIs expr_ id_
+
+parse_expr_lambda :: Parser Expr 
+parse_expr_lambda = do 
+    try $ char '(' >> spaces >> char '\\'
+    spaces
+    ids_ <- many $ identifier_L <* spaces
+    spaces
+    string "->"
+    spaces
+    expr_ <- parse_expr
+    spaces
+    char ')'
+    return $ ExprLambda ids_ expr_
 
 parse_type_declaration :: Parser Declaration
 parse_type_declaration = do
@@ -317,7 +323,8 @@ parse_type = do
         <|> (try (string "Char")   *> return TypeChar)
         <|> (try (string "String") *> return TypeString)
         <|> (try (string "Float")  *> return TypeFloat)
-        <|> (try identifier >>= return . TypeCustom)
+        <|> (try parse_list)
+        <|> (try $ many1 (identifier <* spaces) >>= return . TypeCustom)
        -- <|> try parse_tuple
         <|> try parse_record_type
         <|> try parse_type_parens
@@ -335,6 +342,13 @@ parse_type = do
 
 
     where
+        parse_list :: Parser Type
+        parse_list = do 
+            try $ string "List"
+            spaces
+            type_ <- parse_type
+            return $ TypeList type_
+
         -- parse_tuple = do
         --     try $ char '('
         --     spaces
@@ -382,8 +396,10 @@ parse_type = do
 
 
 identifier_operator :: Parser String 
-identifier_operator =
-    many $ oneOf "!@#$%^&*/=+-_.:?><"
+identifier_operator = do 
+    head_ <- oneOf allowed_symbols
+    tail_ <- many $ oneOf allowed_symbols
+    return $ head_ : tail_
 
 identifier :: Parser String
 identifier = do
