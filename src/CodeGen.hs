@@ -6,7 +6,14 @@ import Data.Maybe (fromMaybe)
 
 run :: AST -> String 
 run (AST id_ exports imports declarations) =
-    unlines $ map declaration_to_code declarations
+    let
+        source = unlines $ map declaration_to_code declarations
+    in
+           "const print = console.log\n\n"
+        ++ "const soma = (a, b) => a + b\n\n"
+        ++ source
+        ++ "\n\nif (typeof main === \"undefined\") { throw new Error (\"There is no entry point. TODO: fail at compile time\") } else { main () }"
+    
     
 declaration_to_code :: Declaration -> String 
 declaration_to_code declaration =

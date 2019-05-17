@@ -29,5 +29,6 @@ main = do
     putStrLn "[TODO!]\n\n"
 
     putStrLn "3. Starting code generation\n"
-    putStrLn $ CodeGen.run ast
-
+    let output = CodeGen.run ast
+    putStrLn output
+    writeFile "source.tmp.js" output
