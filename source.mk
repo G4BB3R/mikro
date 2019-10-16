@@ -14,10 +14,14 @@
 
 (@ Int -> Int )
 (defn fib [ n ]
-    (case n
-        (0 0)
-        (1 1)
-        (_ (+ (fib (- n 1)) (fib (- n 2)) ))))
+    (let [
+        (defn n1 [] 2)
+    ]
+        (case n
+            (0 0)
+            (1 1)
+            (_ (+ (fib (- n 1)) (fib (- n 2)) ))))
+    )
 
 (defn main []
 	(print (fib 10)))

@@ -17,12 +17,12 @@ data Import
         deriving (Show, Eq)
 
 data Declaration
-    = FuncDecl (Maybe Type) String [String] Expr       -- [@ Int -> Int ] \n sum a b = a + b
+    = FuncDecl (Maybe Type) String [String] Expr       -- (@ Int -> Int ) \n sum a b = a + b
     | TypeDecl String [TypeConstructor]        -- type PrimaryColors = Red | Green | Blue
     | AliasDecl String Type                    -- alias Model = { name : String }
         deriving (Show, Eq)
 
-data TypeConstructor 
+data TypeConstructor
     = TypeConstructor [Type]
         deriving (Show, Eq)
 
@@ -39,10 +39,10 @@ data Type
     | TypeParens Type
         deriving (Show, Eq)
 
-data Expr 
+data Expr
     = ExprVal Value
     | ExprList [Expr]
-    | ExprVar String 
+    | ExprVar String
     | ExprRecord [(String, Expr)]     -- { x = if True then 1 else 2, y = 2 + 2, z = 7 }
     | ExprFnCall String [Expr]
     | ExprIf Expr Expr Expr           -- if b then a + 2 else let x = 1 in x
@@ -52,7 +52,7 @@ data Expr
     | ExprLambda [String] Expr
         deriving (Show, Eq)
 
-data Value 
+data Value
     = ValInt Int            -- 1337
     -- | ValBool Bool          -- True
     | ValChar Char          -- 'a'

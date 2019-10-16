@@ -87,7 +87,7 @@ expr_to_code expr =
             expr_to_code expr_if ++ " ? " ++ expr_to_code expr_then ++ " : " ++ expr_to_code expr_else
 
         ExprCase expr kvs -> -- fix
-            "(function () { const expr____ = " ++ expr_to_code expr ++ " ;\n if (false){}\n" ++ (unlines $ map kv_to_code $ kvs) ++ " \n})()"
+            "(() => { const expr____ = " ++ expr_to_code expr ++ " ;\n if (false){}\n" ++ (unlines $ map kv_to_code $ kvs) ++ " \n})()"
             where
                 kv_to_code (expr1, expr2) =
                     if expr1 == ExprVar "_" then
@@ -96,7 +96,7 @@ expr_to_code expr =
                         "else if (expr____ ===" ++ expr_to_code expr1  ++ ")\n {\nreturn " ++ expr_to_code expr2 ++ ";\n}\n"
 
         ExprLet declarations expr ->
-            "\n; () => " ++ (unlines . map ((++) "    " . declaration_to_code) $ declarations) ++ "\n    " ++ expr_to_code expr
+            "\n (() => { " ++ (unlines . map ((++) "    " . declaration_to_code) $ declarations) ++ "\n return " ++ expr_to_code expr ++ "})()"
 
         ExprIs expr str ->
             "[?]"
