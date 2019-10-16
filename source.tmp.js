@@ -1,6 +1,13 @@
-const print = console.log
-
-const soma = (a, b) => a + b
+const print  = console.log                 
+const soma   = (a, b) => a + b             
+const minus  = (a, b) => a - b             
+const div    = (a, b) => a / b             
+const mod    = (a, b) => a % b             
+const gt     = (a, b) => a > b             
+const ls     = (a, b) => a < b             
+const gtOrEq = (a, b) => a >= b            
+const lsOrEq = (a, b) => a <= b            
+const equals = (a, b) => a === b           
 
 const lambida = (a,b) => (function () { const expr____ = soma(a,b) ;
  if (false){}
@@ -18,7 +25,23 @@ else return 999
  
 })()
 
-const main = () => print(lambida(1,2))
+const fib = (n) => (function () { const expr____ = n ;
+ if (false){}
+else if (expr____ ===0)
+ {
+return 0;
+}
+
+else if (expr____ ===1)
+ {
+return 1;
+}
+
+else return soma(fib(minus(n,1)),fib(minus(n,2)))
+ 
+})()
+
+const main = () => print(fib(10))
 
 
 

@@ -14,7 +14,7 @@ run input =
 
 parse_ast :: Parser AST
 parse_ast = do
-    spaces 
+    spaces
     char '('
     spaces
     string "module"
@@ -50,8 +50,8 @@ parse_imports = do
     spaces
     char ')'
     return $ imports_
-    where 
-        import_ = do 
+    where
+        import_ = do
             try $ char '('
             id_ <- identifier_namespaced_U
             spaces
@@ -79,8 +79,8 @@ parse_declaration = do
 
 
 parse_function_declaration :: Parser Declaration
-parse_function_declaration = do 
-    definition_ <- optionMaybe $ do 
+parse_function_declaration = do
+    definition_ <- optionMaybe $ do
         try $ char '(' >> spaces >> char '@'
         spaces
         type_ <- parse_type
@@ -88,13 +88,13 @@ parse_function_declaration = do
         char ')'
         spaces
         return type_
-    
+
     defn <- try $ char '(' >> ((try $ string "defn") <|> string "def")
     spaces
     id_ <- identifier
     spaces
     params_ <- do
-        if defn == "defn" then do 
+        if defn == "defn" then do
             char '['
             spaces
             params_ <- many $ identifier <* spaces
@@ -109,8 +109,8 @@ parse_function_declaration = do
     char ')'
     return $ FuncDecl definition_ id_ params_ expr_
 
-parse_expr :: Parser Expr 
-parse_expr = 
+parse_expr :: Parser Expr
+parse_expr =
         parse_expr_if
     <|> parse_expr_case
     <|> parse_expr_let
@@ -123,8 +123,8 @@ parse_expr =
     <|> parse_expr_var
     <?> "expression"
 
-parse_expr_list :: Parser Expr 
-parse_expr_list = do 
+parse_expr_list :: Parser Expr
+parse_expr_list = do
     try $ char '['
     spaces
     exprs <- many $ try $ parse_expr <* spaces
@@ -132,8 +132,8 @@ parse_expr_list = do
     char ']'
     return $ ExprList exprs
 
-parse_expr_function_call :: Parser Expr 
-parse_expr_function_call = do 
+parse_expr_function_call :: Parser Expr
+parse_expr_function_call = do
     try $ char '('
     spaces
     id_ <- identifier_namespaced_L
@@ -149,35 +149,35 @@ parse_expr_var = do
     return $ ExprVar id_
 
 parse_expr_value :: Parser Value
-parse_expr_value = do 
+parse_expr_value = do
         try parse_int
     -- <|> try parse_bool
     <|> try parse_char
-    <|> try parse_string 
+    <|> try parse_string
     <?> "expression_value"
 
-    where 
-        parse_int :: Parser Value 
-        parse_int = do 
-            n <- many1 digit 
+    where
+        parse_int :: Parser Value
+        parse_int = do
+            n <- many1 digit
             return $ ValInt $ read n
 
-        parse_char :: Parser Value 
-        parse_char = do 
+        parse_char :: Parser Value
+        parse_char = do
             char '\''
             c <- alphaNum
             char '\''
             return $ ValChar c
 
-        parse_string :: Parser Value 
-        parse_string = do 
+        parse_string :: Parser Value
+        parse_string = do
             char '"'
             str <- many $ noneOf "\""
             char '"'
             return $ ValString $ str
 
-parse_expr_record :: Parser Expr 
-parse_expr_record = do 
+parse_expr_record :: Parser Expr
+parse_expr_record = do
     try $ char '{'
     spaces
     head_ <- optionMaybe $ try $ parse_name_and_value
@@ -185,14 +185,14 @@ parse_expr_record = do
     spaces
     char '}'
 
-    case head_ of 
+    case head_ of
         Nothing ->
             return $ ExprRecord $ tail_
 
-        Just head_ -> 
+        Just head_ ->
             return $ ExprRecord $ head_ : tail_
 
-    where 
+    where
         parse_name_and_value = do
             id_ <- identifier
             spaces
@@ -203,7 +203,7 @@ parse_expr_record = do
             return (id_, expr_)
 
 
-parse_expr_if :: Parser Expr 
+parse_expr_if :: Parser Expr
 parse_expr_if = do
     try $ char '(' >> string "if"
     spaces
@@ -216,7 +216,7 @@ parse_expr_if = do
     char ')'
     return $ ExprIf expr1 expr2 expr3
 
-parse_expr_case :: Parser Expr 
+parse_expr_case :: Parser Expr
 parse_expr_case = do
     try $ char '(' >> string "case"
     spaces
@@ -227,9 +227,9 @@ parse_expr_case = do
     char ')'
     return $ ExprCase expr cases_
 
-    where 
+    where
         parser_case :: Parser (Expr, Expr)
-        parser_case = do 
+        parser_case = do
             try $ char '('
             spaces
             expr1 <- parse_expr
@@ -266,8 +266,8 @@ parse_expr_is = do
     char ')'
     return $ ExprIs expr_ id_
 
-parse_expr_lambda :: Parser Expr 
-parse_expr_lambda = do 
+parse_expr_lambda :: Parser Expr
+parse_expr_lambda = do
     try $ char '(' >> spaces >> char '\\'
     spaces
     ids_ <- many $ identifier_L <* spaces
@@ -290,17 +290,16 @@ parse_type_declaration = do
     char ')'
     return $ TypeDecl id_ $ constructors
 
-    where 
+    where
         type_constructor :: Parser TypeConstructor
         type_constructor =
             (do try $ char '('
-                id_    <- identifier_U
-                types_ <- many $ try $ spaces *> parse_type
+             -- id_    <- identifier_U
+                types_ <- many1 $ try $ spaces *> parse_type
                 spaces
                 char ')'
-                return $ TypeConstructor id_ types_)
-
-            <|> (identifier_U >>= (\id_ -> return $ TypeConstructor id_ []))
+                return $ TypeConstructor types_)
+         -- <|> (identifier_U >>= (\id_ -> return $ TypeConstructor id_ []))
 
 
 parse_alias_declaration :: Parser Declaration
@@ -314,10 +313,10 @@ parse_alias_declaration = do
     char ')'
     return $ AliasDecl id_ type_
 
-parse_type :: Parser Type 
-parse_type = do 
+parse_type :: Parser Type
+parse_type = do
 
-    type1 <- 
+    type1 <-
 
             (try (string "Int")    *> return TypeInt)
         <|> (try (string "Char")   *> return TypeChar)
@@ -332,7 +331,7 @@ parse_type = do
 
     arrow_ <- optionMaybe $ try $ spaces *> string "->" *> spaces >> return ()
 
-    case arrow_ of 
+    case arrow_ of
         Nothing ->
             return $ type1
 
@@ -343,7 +342,7 @@ parse_type = do
 
     where
         parse_list :: Parser Type
-        parse_list = do 
+        parse_list = do
             try $ string "List"
             spaces
             type_ <- parse_type
@@ -359,7 +358,7 @@ parse_type = do
         --     spaces
         --     return $ TypeTuple $ head_ : tail_
 
-        parse_record_type = do 
+        parse_record_type = do
             try $ char '{'
             spaces
             head_ <- optionMaybe $ try $ parse_name_and_type
@@ -367,14 +366,14 @@ parse_type = do
             spaces
             char '}'
 
-            case head_ of 
+            case head_ of
                 Nothing ->
                     return $ TypeRecord $ tail_
 
-                Just head_ -> 
+                Just head_ ->
                     return $ TypeRecord $ head_ : tail_
 
-            where 
+            where
                 parse_name_and_type = do
                     id_ <- identifier
                     spaces
@@ -384,19 +383,19 @@ parse_type = do
                     spaces
                     return (id_, type_)
 
-        parse_type_parens = do 
+        parse_type_parens = do
             spaces
             char '('
             spaces
-            type_ <- parse_type 
+            type_ <- parse_type
             spaces
             char ')'
             spaces
             return $ TypeParens type_
 
 
-identifier_operator :: Parser String 
-identifier_operator = do 
+identifier_operator :: Parser String
+identifier_operator = do
     head_ <- oneOf allowed_symbols
     tail_ <- many $ oneOf allowed_symbols
     return $ head_ : tail_
@@ -407,30 +406,30 @@ identifier = do
     xs <- many alphaNum
     return $ x : xs
 
-identifier_L :: Parser String 
-identifier_L = do 
+identifier_L :: Parser String
+identifier_L = do
     x  <- lower
     xs <- many alphaNum
-    return $ x : xs    
+    return $ x : xs
 
-identifier_U :: Parser String 
-identifier_U = do 
+identifier_U :: Parser String
+identifier_U = do
     x  <- upper
     xs <- many alphaNum
-    return $ x : xs    
+    return $ x : xs
 
-identifier_namespaced_U :: Parser String 
+identifier_namespaced_U :: Parser String
 identifier_namespaced_U = do
     m_ <- optionMaybe $ try $ do id_ <- identifier_U ; dot <- string "." ; return $ id_ ++ dot
     id_ <- identifier_U
-    case m_ of 
+    case m_ of
         Nothing -> return id_
         Just namespace -> return $ namespace ++ id_
 
-identifier_namespaced_L :: Parser String 
+identifier_namespaced_L :: Parser String
 identifier_namespaced_L = do
     m_ <- optionMaybe $ try $ do id_ <- identifier_U ; dot <- string "." ; return $ id_ ++ dot
     id_ <- identifier_L <|> identifier_operator
-    case m_ of 
+    case m_ of
         Nothing -> return id_
         Just namespace -> return $ namespace ++ id_

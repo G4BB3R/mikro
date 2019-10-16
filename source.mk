@@ -12,6 +12,12 @@
 		(2  20)
 		(_ 999)))
 
+(@ Int -> Int )
+(defn fib [ n ]
+    (case n
+        (0 0)
+        (1 1)
+        (_ (+ (fib (- n 1)) (fib (- n 2)) ))))
 
 (defn main []
-	(print (lambida 1 2)))
+	(print (fib 10)))

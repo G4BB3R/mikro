@@ -23,7 +23,7 @@ data Declaration
         deriving (Show, Eq)
 
 data TypeConstructor 
-    = TypeConstructor String [Type]
+    = TypeConstructor [Type]
         deriving (Show, Eq)
 
 data Type
